@@ -13,7 +13,7 @@
 
     <users>
         <default>
-            <password from_env="CLICKHOUSE_PASSWORD"/>
+            <password from_env="CLICKHOUSE_PASSWORD" replace="1"></password>
             <networks>
                 <ip>::/0</ip>
             </networks>

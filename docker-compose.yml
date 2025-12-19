@@ -99,11 +99,11 @@ services:
       - grafana-net
     depends_on:
       keeper-01:
-        condition: service_healthy
+        condition: service_started
       keeper-02:
-        condition: service_healthy
+        condition: service_started
       keeper-03:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "8123:8123"
       - "9000:9000"
@@ -129,11 +129,11 @@ services:
       - grafana-net
     depends_on:
       keeper-01:
-        condition: service_healthy
+        condition: service_started
       keeper-02:
-        condition: service_healthy
+        condition: service_started
       keeper-03:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
       interval: 10s
@@ -156,11 +156,11 @@ services:
       - grafana-net
     depends_on:
       keeper-01:
-        condition: service_healthy
+        condition: service_started
       keeper-02:
-        condition: service_healthy
+        condition: service_started
       keeper-03:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
       interval: 10s
@@ -183,11 +183,11 @@ services:
       - grafana-net
     depends_on:
       keeper-01:
-        condition: service_healthy
+        condition: service_started
       keeper-02:
-        condition: service_healthy
+        condition: service_started
       keeper-03:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
       interval: 10s
@@ -210,9 +210,9 @@ services:
       - grafana-net
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       clickhouse-01:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "3001:3000"
     healthcheck:
@@ -237,9 +237,9 @@ services:
       - grafana-net
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       clickhouse-01:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "3002:3000"
     healthcheck:
@@ -264,9 +264,9 @@ services:
       - grafana-net
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       clickhouse-01:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "3003:3000"
     healthcheck:
@@ -284,12 +284,9 @@ services:
     networks:
       - grafana-net
     depends_on:
-      grafana-1:
-        condition: service_healthy
-      grafana-2:
-        condition: service_healthy
-      grafana-3:
-        condition: service_healthy
+      - grafana-1
+      - grafana-2
+      - grafana-3
     ports:
       - "3000:3000"
       - "8404:8404"
