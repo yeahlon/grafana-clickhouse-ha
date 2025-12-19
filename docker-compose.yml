@@ -1,0 +1,300 @@
+version: '3.8'
+
+networks:
+  grafana-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  clickhouse-01-data:
+  clickhouse-02-data:
+  clickhouse-03-data:
+  clickhouse-04-data:
+  keeper-01-data:
+  keeper-02-data:
+  keeper-03-data:
+
+services:
+  # PostgreSQL - Grafana's external database
+  postgres:
+    image: docker.io/postgres:15-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: grafana
+      POSTGRES_USER: grafana
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - grafana-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grafana"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ClickHouse Keeper instances (for coordination)
+  keeper-01:
+    image: docker.io/clickhouse/clickhouse-keeper:latest
+    container_name: keeper-01
+    environment:
+      KEEPER_SERVER_ID: 1
+    volumes:
+      - keeper-01-data:/var/lib/clickhouse
+      - ./clickhouse/keeper_config.xml:/etc/clickhouse-keeper/keeper_config.xml:ro
+    networks:
+      - grafana-net
+    healthcheck:
+      test: ["CMD", "clickhouse-keeper-client", "--query", "ruok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keeper-02:
+    image: docker.io/clickhouse/clickhouse-keeper:latest
+    container_name: keeper-02
+    environment:
+      KEEPER_SERVER_ID: 2
+    volumes:
+      - keeper-02-data:/var/lib/clickhouse
+      - ./clickhouse/keeper_config.xml:/etc/clickhouse-keeper/keeper_config.xml:ro
+    networks:
+      - grafana-net
+    healthcheck:
+      test: ["CMD", "clickhouse-keeper-client", "--query", "ruok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keeper-03:
+    image: docker.io/clickhouse/clickhouse-keeper:latest
+    container_name: keeper-03
+    environment:
+      KEEPER_SERVER_ID: 3
+    volumes:
+      - keeper-03-data:/var/lib/clickhouse
+      - ./clickhouse/keeper_config.xml:/etc/clickhouse-keeper/keeper_config.xml:ro
+    networks:
+      - grafana-net
+    healthcheck:
+      test: ["CMD", "clickhouse-keeper-client", "--query", "ruok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ClickHouse Cluster - Shard 1, Replica 1
+  clickhouse-01:
+    image: docker.io/clickhouse/clickhouse-server:latest
+    container_name: clickhouse-01
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      SHARD: 1
+      REPLICA: replica1
+    volumes:
+      - clickhouse-01-data:/var/lib/clickhouse
+      - ./clickhouse/config.xml:/etc/clickhouse-server/config.d/cluster.xml:ro
+      - ./clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+    networks:
+      - grafana-net
+    depends_on:
+      keeper-01:
+        condition: service_healthy
+      keeper-02:
+        condition: service_healthy
+      keeper-03:
+        condition: service_healthy
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ClickHouse Cluster - Shard 1, Replica 2
+  clickhouse-02:
+    image: docker.io/clickhouse/clickhouse-server:latest
+    container_name: clickhouse-02
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      SHARD: 1
+      REPLICA: replica2
+    volumes:
+      - clickhouse-02-data:/var/lib/clickhouse
+      - ./clickhouse/config.xml:/etc/clickhouse-server/config.d/cluster.xml:ro
+      - ./clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+    networks:
+      - grafana-net
+    depends_on:
+      keeper-01:
+        condition: service_healthy
+      keeper-02:
+        condition: service_healthy
+      keeper-03:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ClickHouse Cluster - Shard 2, Replica 1
+  clickhouse-03:
+    image: docker.io/clickhouse/clickhouse-server:latest
+    container_name: clickhouse-03
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      SHARD: 2
+      REPLICA: replica1
+    volumes:
+      - clickhouse-03-data:/var/lib/clickhouse
+      - ./clickhouse/config.xml:/etc/clickhouse-server/config.d/cluster.xml:ro
+      - ./clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+    networks:
+      - grafana-net
+    depends_on:
+      keeper-01:
+        condition: service_healthy
+      keeper-02:
+        condition: service_healthy
+      keeper-03:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ClickHouse Cluster - Shard 2, Replica 2
+  clickhouse-04:
+    image: docker.io/clickhouse/clickhouse-server:latest
+    container_name: clickhouse-04
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      SHARD: 2
+      REPLICA: replica2
+    volumes:
+      - clickhouse-04-data:/var/lib/clickhouse
+      - ./clickhouse/config.xml:/etc/clickhouse-server/config.d/cluster.xml:ro
+      - ./clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+    networks:
+      - grafana-net
+    depends_on:
+      keeper-01:
+        condition: service_healthy
+      keeper-02:
+        condition: service_healthy
+      keeper-03:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Grafana Instance 1
+  grafana-1:
+    image: docker.io/grafana/grafana:latest
+    container_name: grafana-1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD}
+      GF_SECURITY_SECRET_KEY: ${GF_SECRET_KEY}
+      GF_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+    volumes:
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+    networks:
+      - grafana-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse-01:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Grafana Instance 2
+  grafana-2:
+    image: docker.io/grafana/grafana:latest
+    container_name: grafana-2
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD}
+      GF_SECURITY_SECRET_KEY: ${GF_SECRET_KEY}
+      GF_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+    volumes:
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+    networks:
+      - grafana-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse-01:
+        condition: service_healthy
+    ports:
+      - "3002:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Grafana Instance 3
+  grafana-3:
+    image: docker.io/grafana/grafana:latest
+    container_name: grafana-3
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD}
+      GF_SECURITY_SECRET_KEY: ${GF_SECRET_KEY}
+      GF_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+    volumes:
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+    networks:
+      - grafana-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse-01:
+        condition: service_healthy
+    ports:
+      - "3003:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # HAProxy Load Balancer
+  haproxy:
+    image: docker.io/haproxy:2.8-alpine
+    container_name: haproxy
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      - grafana-net
+    depends_on:
+      grafana-1:
+        condition: service_healthy
+      grafana-2:
+        condition: service_healthy
+      grafana-3:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+      - "8404:8404"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8404/stats"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
